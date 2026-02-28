@@ -5,34 +5,21 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
-} from "react-router";
+} from 'react-router';
 
-import type { Route } from "./+types/root";
-import "./app.css";
-
-export const links: Route.LinksFunction = () => [
-  { rel: "preconnect", href: "https://fonts.googleapis.com" },
-  {
-    rel: "preconnect",
-    href: "https://fonts.gstatic.com",
-    crossOrigin: "anonymous",
-  },
-  {
-    rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
-  },
-];
+import './styles/app.css';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Met Accounting — CIL Gold Plant</title>
         <Meta />
         <Links />
       </head>
-      <body>
+      <body className="bg-navy-800 text-gray-200 font-sans antialiased">
         {children}
         <ScrollRestoration />
         <Scripts />
@@ -45,16 +32,16 @@ export default function App() {
   return <Outlet />;
 }
 
-export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let message = "Oops!";
-  let details = "An unexpected error occurred.";
+export function ErrorBoundary({ error }: { error: unknown }) {
+  let message = 'Oops!';
+  let details = 'An unexpected error occurred.';
   let stack: string | undefined;
 
   if (isRouteErrorResponse(error)) {
-    message = error.status === 404 ? "404" : "Error";
+    message = error.status === 404 ? '404' : 'Error';
     details =
       error.status === 404
-        ? "The requested page could not be found."
+        ? 'The requested page could not be found.'
         : error.statusText || details;
   } else if (import.meta.env.DEV && error && error instanceof Error) {
     details = error.message;
@@ -62,14 +49,22 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
 
   return (
-    <main className="pt-16 p-4 container mx-auto">
-      <h1>{message}</h1>
-      <p>{details}</p>
-      {stack && (
-        <pre className="w-full p-4 overflow-x-auto">
-          <code>{stack}</code>
-        </pre>
-      )}
+    <main className="min-h-screen flex items-center justify-center bg-navy-800 p-4">
+      <div className="bg-navy-700 rounded-lg p-8 max-w-lg border border-navy-500/30">
+        <h1 className="text-2xl font-bold text-gold-400 mb-2">{message}</h1>
+        <p className="text-gray-300 mb-4">{details}</p>
+        {stack && (
+          <pre className="bg-navy-900 rounded p-3 text-xs text-gray-400 overflow-x-auto">
+            <code>{stack}</code>
+          </pre>
+        )}
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600 transition-colors text-sm"
+        >
+          Reload Page
+        </button>
+      </div>
     </main>
   );
 }

@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@theme {
+  /* Breakpoints */
+  --breakpoint-xs: 475px;
+
+  /* Navy scale */
+  --color-navy-950: #060d18;
+  --color-navy-900: #0a1628;
+  --color-navy-800: #0c1220;
+  --color-navy-700: #142035;
+  --color-navy-600: #1a2a42;
+  --color-navy-500: #1e3a5f;
+
+  /* Gold */
+  --color-gold-400: #f5c542;
+  --color-gold-500: #b8942e;
+  --color-gold-600: #8a6f22;
+
+  /* Teal accents */
+  --color-teal-400: #14b8a6;
+  --color-teal-500: #0d9488;
+  --color-teal-600: #0f766e;
+
+  /* Font */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Base */
+html {
+  background-color: var(--color-navy-800);
+  color: #e8edf5;
+}
+
+body {
+  min-height: 100vh;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-navy-900);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-navy-500);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-teal-500);
+}
+
+/* Selection */
+::selection {
+  background-color: rgba(20, 184, 166, 0.3);
+  color: #e8edf5;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Print */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  html {
+    background: white;
+    color: black;
+  }
+}
