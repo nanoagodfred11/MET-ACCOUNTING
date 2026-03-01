@@ -1,17 +1,30 @@
 import { NavLink, Form } from 'react-router';
 import { useState } from 'react';
-import { LayoutDashboard, PencilLine, Scale, TrendingUp, FileText, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, PencilLine, Scale, TrendingUp, FileText, LogOut, Menu, X, Users, ClipboardList, ArrowLeftRight, GitCompareArrows } from 'lucide-react';
 
-const navItems = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  roles?: string[];
+}
+
+const navItems: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/data-entry', label: 'Data Entry', icon: PencilLine },
-  { to: '/mass-balance', label: 'Mass Balance', icon: Scale },
-  { to: '/recovery', label: 'Recovery', icon: TrendingUp },
-  { to: '/monthly', label: 'Monthly Report', icon: FileText },
+  { to: '/mass-balance', label: 'Mass Balance', icon: Scale, roles: ['admin', 'met_accountant', 'plant_manager'] },
+  { to: '/recovery', label: 'Recovery', icon: TrendingUp, roles: ['admin', 'met_accountant', 'plant_manager'] },
+  { to: '/monthly', label: 'Monthly Report', icon: FileText, roles: ['admin', 'met_accountant', 'plant_manager'] },
+  { to: '/reconciliation', label: 'Reconciliation', icon: GitCompareArrows, roles: ['admin', 'met_accountant', 'plant_manager'] },
+  { to: '/activity-log', label: 'Activity Log', icon: ClipboardList },
+  { to: '/shift-handover', label: 'Shift Handover', icon: ArrowLeftRight },
+  { to: '/admin/users', label: 'User Management', icon: Users, roles: ['admin'] },
 ];
 
 export function Sidebar({ username, role }: { username: string; role: string }) {
   const [open, setOpen] = useState(false);
+
+  const visibleItems = navItems.filter((item) => !item.roles || item.roles.includes(role));
 
   return (
     <>
@@ -66,7 +79,7 @@ export function Sidebar({ username, role }: { username: string; role: string }) 
 
         {/* Navigation */}
         <nav className="flex-1 py-3 overflow-y-auto">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {visibleItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}

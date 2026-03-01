@@ -4,8 +4,13 @@ import { requireAuth } from '~/lib/auth.server';
 import { massBalanceService } from '~/lib/services/massBalanceService.server';
 import { recoveryService } from '~/lib/services/recoveryService.server';
 import { SamplingPoint } from '~/lib/models/SamplingPoint.server';
+import { ProcessingData } from '~/lib/models/ProcessingData.server';
+import { Assay } from '~/lib/models/Assay.server';
+import { Recovery } from '~/lib/models/Recovery.server';
+import { Reconciliation } from '~/lib/models/Reconciliation.server';
 import { DEFAULT_SAMPLING_POINTS, DEFAULT_RECOVERY_TARGET } from '~/lib/config/constants';
 import { StatCard } from '~/components/cards/StatCard';
+import { ProcessTracker, type StageStatus } from '~/components/ProcessTracker';
 import { RouteErrorBoundary as ErrorBoundary } from '~/components/RouteErrorBoundary';
 export { ErrorBoundary };
 import { ClientOnly } from '~/components/ClientOnly';
@@ -40,11 +45,51 @@ export async function loader({ request }: Route.LoaderArgs) {
     target: r.budgetTarget ?? DEFAULT_RECOVERY_TARGET,
   }));
 
+  // Pipeline stage computation for the selected date
+  const periodQuery = { 'period.periodType': 'daily', 'period.date': parseISODate(date) };
+  const [pdCount, assayCount, verifiedCount, recoveryDoc, reconCount] = await Promise.all([
+    ProcessingData.countDocuments(periodQuery),
+    Assay.countDocuments(periodQuery),
+    Assay.countDocuments({ ...periodQuery, isVerified: true }),
+    Recovery.findOne(periodQuery).lean().exec(),
+    Reconciliation.countDocuments(periodQuery),
+  ]);
+
+  const stages: StageStatus[] = [
+    {
+      name: 'Data Entry',
+      status: pdCount > 0 ? 'complete' : 'pending',
+      detail: pdCount > 0 ? `${pdCount} records` : undefined,
+    },
+    {
+      name: 'Assay Verification',
+      status: assayCount > 0 && verifiedCount === assayCount ? 'complete' :
+              assayCount > 0 ? 'in-progress' : 'pending',
+      detail: assayCount > 0 ? `${verifiedCount}/${assayCount} verified` : undefined,
+    },
+    {
+      name: 'Mass Balance',
+      status: massBalance ? 'complete' : 'pending',
+      detail: massBalance ? massBalance.status : undefined,
+    },
+    {
+      name: 'Recovery',
+      status: recoveryDoc ? 'complete' : 'pending',
+      detail: recoveryDoc ? `${recoveryDoc.overallRecovery.toFixed(1)}%` : undefined,
+    },
+    {
+      name: 'Reconciliation',
+      status: reconCount > 0 ? 'complete' : 'pending',
+      detail: reconCount > 0 ? `${reconCount} checks` : undefined,
+    },
+  ];
+
   return {
     date,
     spCount,
     massBalance,
     recoveryTrend,
+    stages,
   };
 }
 
@@ -68,7 +113,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function DashboardPage() {
-  const { date, spCount, massBalance, recoveryTrend } = useLoaderData<typeof loader>();
+  const { date, spCount, massBalance, recoveryTrend, stages } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
 
   const mb = massBalance;
@@ -95,6 +140,11 @@ export default function DashboardPage() {
           </fetcher.Form>
         </div>
       )}
+
+      {/* Process Tracker */}
+      <div className="mb-6">
+        <ProcessTracker stages={stages} />
+      </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">

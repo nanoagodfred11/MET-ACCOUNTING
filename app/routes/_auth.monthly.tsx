@@ -1,7 +1,7 @@
 import { useLoaderData, useFetcher, useSearchParams } from 'react-router';
 import { useState } from 'react';
 import { connectDB } from '~/lib/db.server';
-import { requireAuth } from '~/lib/auth.server';
+import { requireAuth, checkPermission } from '~/lib/auth.server';
 import { massBalanceService } from '~/lib/services/massBalanceService.server';
 import { recoveryService } from '~/lib/services/recoveryService.server';
 import { ActionMessage } from '~/components/ActionMessage';
@@ -12,7 +12,9 @@ import type { Route } from './+types/_auth.monthly';
 
 export async function loader({ request }: Route.LoaderArgs) {
   await connectDB();
-  await requireAuth(request);
+  const user = await requireAuth(request);
+  const permission = checkPermission(user.role, '/monthly');
+  if (permission === 'none') throw new Response('Forbidden', { status: 403 });
 
   const url = new URL(request.url);
   const now = new Date();

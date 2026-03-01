@@ -1,6 +1,6 @@
 import { useLoaderData, useFetcher } from 'react-router';
 import { connectDB } from '~/lib/db.server';
-import { requireAuth } from '~/lib/auth.server';
+import { requireAuth, checkPermission } from '~/lib/auth.server';
 import { massBalanceService } from '~/lib/services/massBalanceService.server';
 import { PeriodSelector } from '~/components/forms/PeriodSelector';
 import { ActionMessage } from '~/components/ActionMessage';
@@ -13,7 +13,9 @@ import type { Route } from './+types/_auth.mass-balance';
 
 export async function loader({ request }: Route.LoaderArgs) {
   await connectDB();
-  await requireAuth(request);
+  const user = await requireAuth(request);
+  const permission = checkPermission(user.role, '/mass-balance');
+  if (permission === 'none') throw new Response('Forbidden', { status: 403 });
 
   const url = new URL(request.url);
   const date = url.searchParams.get('date') || toISODate(new Date());
@@ -36,6 +38,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     periodType,
     shift: shift || '1',
     massBalance,
+    canWrite: permission === 'full',
   };
 }
 
@@ -44,6 +47,11 @@ export async function action({ request }: Route.ActionArgs) {
   const user = await requireAuth(request);
   const formData = await request.formData();
   const intent = formData.get('intent');
+
+  const permission = checkPermission(user.role, '/mass-balance');
+  if (permission === 'read-only' || permission === 'none') {
+    return { success: false, message: 'You do not have permission to calculate mass balance' };
+  }
 
   if (intent === 'calculate') {
     const raw = Object.fromEntries(formData);
@@ -68,7 +76,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function MassBalancePage() {
-  const { date, periodType, shift, massBalance } = useLoaderData<typeof loader>();
+  const { date, periodType, shift, massBalance, canWrite } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
 
   const actionResult = fetcher.data as { success?: boolean; message?: string } | undefined;
@@ -80,19 +88,21 @@ export default function MassBalancePage() {
         <h1 className="text-xl sm:text-2xl font-bold text-gold-400">Mass Balance</h1>
         <div className="flex flex-wrap items-center gap-2">
           <PeriodSelector />
-          <fetcher.Form method="post">
-            <input type="hidden" name="intent" value="calculate" />
-            <input type="hidden" name="periodType" value={periodType} />
-            <input type="hidden" name="date" value={date} />
-            {periodType === 'shift' && <input type="hidden" name="shift" value={shift} />}
-            <button
-              type="submit"
-              disabled={isCalculating}
-              className="px-4 py-1.5 bg-teal-500 text-white rounded-lg text-sm hover:bg-teal-600 disabled:opacity-50 transition-colors active:scale-95"
-            >
-              {isCalculating ? 'Calculating...' : 'Calculate'}
-            </button>
-          </fetcher.Form>
+          {canWrite && (
+            <fetcher.Form method="post">
+              <input type="hidden" name="intent" value="calculate" />
+              <input type="hidden" name="periodType" value={periodType} />
+              <input type="hidden" name="date" value={date} />
+              {periodType === 'shift' && <input type="hidden" name="shift" value={shift} />}
+              <button
+                type="submit"
+                disabled={isCalculating}
+                className="px-4 py-1.5 bg-teal-500 text-white rounded-lg text-sm hover:bg-teal-600 disabled:opacity-50 transition-colors active:scale-95"
+              >
+                {isCalculating ? 'Calculating...' : 'Calculate'}
+              </button>
+            </fetcher.Form>
+          )}
         </div>
       </div>
 

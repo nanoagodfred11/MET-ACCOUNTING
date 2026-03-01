@@ -66,6 +66,7 @@ export class ProcessingDataService {
     if (updates.wetTonnes !== undefined) data.wetTonnes = updates.wetTonnes;
     if (updates.moisturePercent !== undefined) data.moisturePercent = updates.moisturePercent;
     if (updates.notes !== undefined) data.notes = updates.notes;
+    if (userId) data.updatedBy = userId as any;
 
     const saved = await data.save();
     logAudit('update', 'processingData', id, { old, new: { wetTonnes: saved.wetTonnes, moisturePercent: saved.moisturePercent, notes: saved.notes } }, ip, userId);

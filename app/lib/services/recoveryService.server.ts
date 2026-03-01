@@ -3,6 +3,7 @@ import { MassBalance } from '../models/MassBalance.server';
 import type { ServerPeriod } from '~/types';
 import { calcRecovery, round } from '../utils/calculations';
 import { PRECISION, DEFAULT_RECOVERY_TARGET } from '../config/constants';
+import { logAudit } from './auditService.server';
 
 export class RecoveryService {
   async calculate(period: ServerPeriod, budgetTarget?: number, userId?: string) {
@@ -39,6 +40,8 @@ export class RecoveryService {
       },
       { upsert: true, returnDocument: 'after' }
     ).exec();
+
+    logAudit('calculate', 'recovery', recovery!._id, { overallRecovery, budgetTarget: target, variance }, undefined, userId);
 
     return recovery;
   }

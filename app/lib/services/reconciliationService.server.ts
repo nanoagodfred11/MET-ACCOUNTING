@@ -3,6 +3,7 @@ import { MassBalance } from '../models/MassBalance.server';
 import type { ServerPeriod } from '~/types';
 import { calcDiscrepancy, calcDiscrepancyPercent } from '../utils/calculations';
 import { THRESHOLDS } from '../config/constants';
+import { logAudit } from './auditService.server';
 
 interface ReconciliationDTO {
   period: ServerPeriod;
@@ -33,7 +34,9 @@ export class ReconciliationService {
       ...(userId && { createdBy: userId }),
     });
 
-    return recon.save();
+    const saved = await recon.save();
+    logAudit('create', 'reconciliation', saved._id, { discrepancyPercent, isFlagged }, undefined, userId);
+    return saved;
   }
 
   async autoPlantVsRefinery(period: ServerPeriod, refineryMetal: number, userId?: string) {
@@ -70,11 +73,13 @@ export class ReconciliationService {
   }
 
   async resolve(id: string, resolutionNotes: string, userId?: string) {
-    return Reconciliation.findByIdAndUpdate(
+    const result = await Reconciliation.findByIdAndUpdate(
       id,
       { isResolved: true, resolvedAt: new Date(), resolutionNotes, ...(userId && { resolvedBy: userId }) },
       { returnDocument: 'after' }
     ).exec();
+    logAudit('resolve', 'reconciliation', id, { resolutionNotes }, undefined, userId);
+    return result;
   }
 
   async getByPeriod(period: ServerPeriod) {

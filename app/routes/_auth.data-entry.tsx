@@ -1,7 +1,7 @@
 import { useLoaderData, useFetcher, useSearchParams } from 'react-router';
 import { useState } from 'react';
 import { connectDB } from '~/lib/db.server';
-import { requireAuth } from '~/lib/auth.server';
+import { requireAuth, checkPermission } from '~/lib/auth.server';
 import { SamplingPoint } from '~/lib/models/SamplingPoint.server';
 import { processingDataService } from '~/lib/services/processingDataService.server';
 import { assayService } from '~/lib/services/assayService.server';
@@ -36,16 +36,21 @@ export async function loader({ request }: Route.LoaderArgs) {
     assayService.getVerified(),
   ]);
 
+  const permission = checkPermission(user.role, '/data-entry');
+
+  const serialize = (v: any) => JSON.parse(JSON.stringify(v));
+
   return {
     user,
+    permission,
     date,
     periodType,
     shift: shift || '1',
-    samplingPoints,
-    processingData,
-    periodAssays,
-    pendingAssays,
-    verifiedAssays,
+    samplingPoints: serialize(samplingPoints),
+    processingData: serialize(processingData),
+    periodAssays: serialize(periodAssays),
+    pendingAssays: serialize(pendingAssays),
+    verifiedAssays: serialize(verifiedAssays),
   };
 }
 
@@ -55,8 +60,13 @@ export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData();
   const intent = formData.get('intent');
 
+  const permission = checkPermission(user.role, '/data-entry');
+
   try {
     if (intent === 'create-processing-data') {
+      if (permission === 'read-only' || permission === 'assay-only') {
+        return { success: false, message: 'You do not have permission to create tonnage data' };
+      }
       const raw = Object.fromEntries(formData);
       const parsed = createProcessingDataSchema.safeParse(raw);
       if (!parsed.success) return { success: false, message: firstError(parsed.error) };
@@ -78,6 +88,9 @@ export async function action({ request }: Route.ActionArgs) {
     }
 
     if (intent === 'update-processing-data') {
+      if (permission === 'read-only' || permission === 'assay-only') {
+        return { success: false, message: 'You do not have permission to update tonnage data' };
+      }
       const raw = Object.fromEntries(formData);
       const parsed = updateProcessingDataSchema.safeParse(raw);
       if (!parsed.success) return { success: false, message: firstError(parsed.error) };
@@ -88,6 +101,9 @@ export async function action({ request }: Route.ActionArgs) {
     }
 
     if (intent === 'delete-processing-data') {
+      if (permission === 'read-only' || permission === 'assay-only') {
+        return { success: false, message: 'You do not have permission to delete tonnage data' };
+      }
       const id = String(formData.get('id'));
       if (!id) return { success: false, message: 'Record ID is required' };
       await processingDataService.delete(id, undefined, user.id);
@@ -111,12 +127,15 @@ export async function action({ request }: Route.ActionArgs) {
         grade,
         labSampleId: labSampleId || '',
         notes: notes || '',
-      });
+      }, user.id);
 
       return { success: true, message: 'Assay created' };
     }
 
     if (intent === 'verify-assay') {
+      if (permission === 'read-only') {
+        return { success: false, message: 'You do not have permission to verify assays' };
+      }
       const id = String(formData.get('id'));
       if (!id) return { success: false, message: 'Assay ID is required' };
       await assayService.verify(id, user.id);
@@ -124,9 +143,12 @@ export async function action({ request }: Route.ActionArgs) {
     }
 
     if (intent === 'unverify-assay') {
+      if (permission === 'read-only') {
+        return { success: false, message: 'You do not have permission to unverify assays' };
+      }
       const id = String(formData.get('id'));
       if (!id) return { success: false, message: 'Assay ID is required' };
-      await assayService.unverify(id);
+      await assayService.unverify(id, user.id);
       return { success: true, message: 'Assay unverified' };
     }
 
@@ -147,6 +169,9 @@ export default function DataEntryPage() {
   const date = searchParams.get('date') || data.date;
   const periodType = searchParams.get('periodType') || data.periodType;
   const shift = searchParams.get('shift') || data.shift;
+  const permission = data.permission;
+  const canWriteTonnage = permission === 'full';
+  const canWriteAssay = permission === 'full' || permission === 'assay-only';
 
   const actionResult = fetcher.data as { success?: boolean; message?: string } | undefined;
 
@@ -156,6 +181,17 @@ export default function DataEntryPage() {
         <h1 className="text-xl sm:text-2xl font-bold text-gold-400">Data Entry</h1>
         <PeriodSelector />
       </div>
+
+      {permission === 'read-only' && (
+        <div className="mb-4 bg-gold-400/10 border border-gold-400/30 rounded-lg px-4 py-2 text-sm text-gold-400">
+          Read-only access — you cannot modify data on this page.
+        </div>
+      )}
+      {permission === 'assay-only' && (
+        <div className="mb-4 bg-blue-500/10 border border-blue-500/30 rounded-lg px-4 py-2 text-sm text-blue-400">
+          You can create and manage assays only. Tonnage data is read-only.
+        </div>
+      )}
 
       <ActionMessage result={actionResult} />
 
@@ -187,6 +223,8 @@ export default function DataEntryPage() {
           setEditingId={setEditingId}
           showAssayForm={showAssayForm}
           setShowAssayForm={setShowAssayForm}
+          canWriteTonnage={canWriteTonnage}
+          canWriteAssay={canWriteAssay}
         />
       )}
 
@@ -195,6 +233,7 @@ export default function DataEntryPage() {
           pendingAssays={data.pendingAssays}
           verifiedAssays={data.verifiedAssays}
           fetcher={fetcher}
+          canVerify={canWriteAssay}
         />
       )}
     </div>
@@ -212,11 +251,13 @@ function TonnageTab({
   setEditingId,
   showAssayForm,
   setShowAssayForm,
+  canWriteTonnage = true,
+  canWriteAssay = true,
 }: any) {
   return (
     <div>
       {/* Create form */}
-      <div className="bg-navy-700 rounded-lg p-4 mb-6 border border-navy-500/30">
+      {canWriteTonnage && <div className="bg-navy-700 rounded-lg p-4 mb-6 border border-navy-500/30">
         <h3 className="text-sm font-medium text-gray-300 mb-3">Add Tonnage Record</h3>
         <fetcher.Form method="post" className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-3 items-end">
           <input type="hidden" name="intent" value="create-processing-data" />
@@ -253,7 +294,7 @@ function TonnageTab({
             Add
           </button>
         </fetcher.Form>
-      </div>
+      </div>}
 
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border border-navy-500/30 -mx-4 sm:mx-0">
@@ -312,7 +353,7 @@ function TonnageTab({
                   <td className="px-4 py-2.5 capitalize text-xs">{pd.status}</td>
                   <td className="px-4 py-2.5 text-gray-500 text-xs">{pd.notes || '—'}</td>
                   <td className="text-right px-4 py-2.5 space-x-2">
-                    {pd.status !== 'locked' && (
+                    {pd.status !== 'locked' && canWriteTonnage && (
                       <>
                         <button onClick={() => setEditingId(pd._id)} className="text-xs text-teal-400 hover:text-teal-300">Edit</button>
                         <fetcher.Form method="post" className="inline">
@@ -322,7 +363,7 @@ function TonnageTab({
                         </fetcher.Form>
                       </>
                     )}
-                    <button onClick={() => setShowAssayForm(showAssayForm === pd._id ? null : pd._id)} className="text-xs text-gold-400 hover:text-gold-300">+Assay</button>
+                    {canWriteAssay && <button onClick={() => setShowAssayForm(showAssayForm === pd._id ? null : pd._id)} className="text-xs text-gold-400 hover:text-gold-300">+Assay</button>}
                   </td>
                 </tr>
               );
@@ -373,7 +414,7 @@ function TonnageTab({
   );
 }
 
-function AssaysTab({ pendingAssays, verifiedAssays, fetcher }: any) {
+function AssaysTab({ pendingAssays, verifiedAssays, fetcher, canVerify = true }: any) {
   return (
     <div className="space-y-6">
       {/* Pending */}
@@ -400,11 +441,13 @@ function AssaysTab({ pendingAssays, verifiedAssays, fetcher }: any) {
                   <td className="px-4 py-2.5 text-gray-500">{a.labSampleId || '—'}</td>
                   <td className="px-4 py-2.5 text-xs text-gray-400">{a.period?.date ? new Date(a.period.date).toISOString().split('T')[0] : '—'}</td>
                   <td className="text-right px-4 py-2.5">
-                    <fetcher.Form method="post" className="inline">
-                      <input type="hidden" name="intent" value="verify-assay" />
-                      <input type="hidden" name="id" value={a._id} />
-                      <button type="submit" className="text-xs text-green-400 hover:text-green-300 font-medium">Verify</button>
-                    </fetcher.Form>
+                    {canVerify && (
+                      <fetcher.Form method="post" className="inline">
+                        <input type="hidden" name="intent" value="verify-assay" />
+                        <input type="hidden" name="id" value={a._id} />
+                        <button type="submit" className="text-xs text-green-400 hover:text-green-300 font-medium">Verify</button>
+                      </fetcher.Form>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -437,11 +480,13 @@ function AssaysTab({ pendingAssays, verifiedAssays, fetcher }: any) {
                   <td className="px-4 py-2.5 text-gray-500">{a.labSampleId || '—'}</td>
                   <td className="px-4 py-2.5 text-xs text-gray-400">{a.period?.date ? new Date(a.period.date).toISOString().split('T')[0] : '—'}</td>
                   <td className="text-right px-4 py-2.5">
-                    <fetcher.Form method="post" className="inline">
-                      <input type="hidden" name="intent" value="unverify-assay" />
-                      <input type="hidden" name="id" value={a._id} />
-                      <button type="submit" className="text-xs text-amber-400 hover:text-amber-300 font-medium">Unverify</button>
-                    </fetcher.Form>
+                    {canVerify && (
+                      <fetcher.Form method="post" className="inline">
+                        <input type="hidden" name="intent" value="unverify-assay" />
+                        <input type="hidden" name="id" value={a._id} />
+                        <button type="submit" className="text-xs text-amber-400 hover:text-amber-300 font-medium">Unverify</button>
+                      </fetcher.Form>
+                    )}
                   </td>
                 </tr>
               ))}

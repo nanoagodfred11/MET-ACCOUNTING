@@ -9,5 +9,9 @@ export default [
     route('mass-balance', 'routes/_auth.mass-balance.tsx'),
     route('recovery', 'routes/_auth.recovery.tsx'),
     route('monthly', 'routes/_auth.monthly.tsx'),
+    route('reconciliation', 'routes/_auth.reconciliation.tsx'),
+    route('admin/users', 'routes/_auth.admin.users.tsx'),
+    route('activity-log', 'routes/_auth.activity-log.tsx'),
+    route('shift-handover', 'routes/_auth.shift-handover.tsx'),
   ]),
 ] satisfies RouteConfig;

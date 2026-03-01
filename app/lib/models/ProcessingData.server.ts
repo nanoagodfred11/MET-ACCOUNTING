@@ -12,6 +12,7 @@ export interface IProcessingData extends Document {
   dryTonnes: number;
   status: string;
   enteredBy?: mongoose.Types.ObjectId;
+  updatedBy?: mongoose.Types.ObjectId;
   lockedBy?: mongoose.Types.ObjectId;
   lockedAt?: Date;
   notes?: string;
@@ -41,6 +42,7 @@ const processingDataSchema = new Schema<IProcessingData>(
       default: DataStatus.DRAFT,
     },
     enteredBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     lockedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     lockedAt: { type: Date },
     notes: { type: String },

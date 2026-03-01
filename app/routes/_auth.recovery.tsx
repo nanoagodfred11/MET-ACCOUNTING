@@ -1,6 +1,6 @@
 import { useLoaderData, useFetcher, useSearchParams } from 'react-router';
 import { connectDB } from '~/lib/db.server';
-import { requireAuth } from '~/lib/auth.server';
+import { requireAuth, checkPermission } from '~/lib/auth.server';
 import { recoveryService } from '~/lib/services/recoveryService.server';
 import { DEFAULT_RECOVERY_TARGET } from '~/lib/config/constants';
 import { StatCard } from '~/components/cards/StatCard';
@@ -16,7 +16,9 @@ import type { Route } from './+types/_auth.recovery';
 
 export async function loader({ request }: Route.LoaderArgs) {
   await connectDB();
-  await requireAuth(request);
+  const user = await requireAuth(request);
+  const permission = checkPermission(user.role, '/recovery');
+  if (permission === 'none') throw new Response('Forbidden', { status: 403 });
 
   const url = new URL(request.url);
   const date = url.searchParams.get('date') || toISODate(new Date());
@@ -45,6 +47,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     summary,
     todayRecovery: todayData?.recovery ?? null,
     todayVariance: todayData ? todayData.recovery - todayData.target : null,
+    canWrite: permission === 'full',
   };
 }
 
@@ -53,6 +56,11 @@ export async function action({ request }: Route.ActionArgs) {
   const user = await requireAuth(request);
   const formData = await request.formData();
   const intent = formData.get('intent');
+
+  const permission = checkPermission(user.role, '/recovery');
+  if (permission === 'read-only' || permission === 'none') {
+    return { success: false, message: 'You do not have permission to calculate recovery' };
+  }
 
   if (intent === 'calculate') {
     const raw = Object.fromEntries(formData);
@@ -77,7 +85,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function RecoveryPage() {
-  const { date, recoveryTrend, summary, todayRecovery, todayVariance } = useLoaderData<typeof loader>();
+  const { date, recoveryTrend, summary, todayRecovery, todayVariance, canWrite } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [searchParams] = useSearchParams();
 
@@ -92,19 +100,21 @@ export default function RecoveryPage() {
         <h1 className="text-xl sm:text-2xl font-bold text-gold-400">Recovery Analysis</h1>
         <div className="flex flex-wrap items-center gap-2">
           <PeriodSelector showShift={false} />
-          <fetcher.Form method="post">
-            <input type="hidden" name="intent" value="calculate" />
-            <input type="hidden" name="periodType" value={periodType} />
-            <input type="hidden" name="date" value={date} />
-            {periodType === 'shift' && <input type="hidden" name="shift" value={shift} />}
-            <button
-              type="submit"
-              disabled={isCalculating}
-              className="px-4 py-1.5 bg-teal-500 text-white rounded-lg text-sm hover:bg-teal-600 disabled:opacity-50 transition-colors active:scale-95"
-            >
-              {isCalculating ? 'Calculating...' : 'Calculate'}
-            </button>
-          </fetcher.Form>
+          {canWrite && (
+            <fetcher.Form method="post">
+              <input type="hidden" name="intent" value="calculate" />
+              <input type="hidden" name="periodType" value={periodType} />
+              <input type="hidden" name="date" value={date} />
+              {periodType === 'shift' && <input type="hidden" name="shift" value={shift} />}
+              <button
+                type="submit"
+                disabled={isCalculating}
+                className="px-4 py-1.5 bg-teal-500 text-white rounded-lg text-sm hover:bg-teal-600 disabled:opacity-50 transition-colors active:scale-95"
+              >
+                {isCalculating ? 'Calculating...' : 'Calculate'}
+              </button>
+            </fetcher.Form>
+          )}
         </div>
       </div>
 

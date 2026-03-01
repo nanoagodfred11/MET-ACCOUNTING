@@ -1,5 +1,6 @@
 import { Assay } from '../models/Assay.server';
 import type { ServerPeriod } from '~/types';
+import { logAudit } from './auditService.server';
 
 interface AssayDTO {
   processingDataId: string;
@@ -11,7 +12,7 @@ interface AssayDTO {
 }
 
 export class AssayService {
-  async create(dto: AssayDTO) {
+  async create(dto: AssayDTO, userId?: string) {
     const assay = new Assay({
       processingData: dto.processingDataId,
       samplingPoint: dto.samplingPointId,
@@ -20,7 +21,9 @@ export class AssayService {
       labSampleId: dto.labSampleId,
       notes: dto.notes,
     });
-    return assay.save();
+    const saved = await assay.save();
+    logAudit('create', 'assay', saved._id, { grade: dto.grade, samplingPointId: dto.samplingPointId }, undefined, userId);
+    return saved;
   }
 
   async getByPeriod(period: ServerPeriod) {
@@ -57,7 +60,7 @@ export class AssayService {
   }
 
   async verify(id: string, userId?: string) {
-    return Assay.findByIdAndUpdate(
+    const result = await Assay.findByIdAndUpdate(
       id,
       {
         isVerified: true,
@@ -66,10 +69,12 @@ export class AssayService {
       },
       { returnDocument: 'after' }
     ).exec();
+    logAudit('verify', 'assay', id, { isVerified: true }, undefined, userId);
+    return result;
   }
 
-  async unverify(id: string) {
-    return Assay.findByIdAndUpdate(
+  async unverify(id: string, userId?: string) {
+    const result = await Assay.findByIdAndUpdate(
       id,
       {
         isVerified: false,
@@ -78,6 +83,8 @@ export class AssayService {
       },
       { returnDocument: 'after' }
     ).exec();
+    logAudit('unverify', 'assay', id, { isVerified: false }, undefined, userId);
+    return result;
   }
 
   async getForProcessingData(processingDataId: string) {

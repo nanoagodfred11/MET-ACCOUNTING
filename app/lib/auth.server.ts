@@ -109,6 +109,34 @@ export async function getUserFromSession(request: Request) {
   }
 }
 
+export async function requireRole(request: Request, allowedRoles: string[]) {
+  const user = await requireAuth(request);
+  if (!allowedRoles.includes(user.role)) {
+    throw redirect('/');
+  }
+  return user;
+}
+
+type PermissionLevel = 'full' | 'read-only' | 'assay-only' | 'own-only' | 'none';
+
+const permissionMatrix: Record<string, Record<string, PermissionLevel>> = {
+  '/': { admin: 'full', met_accountant: 'full', plant_manager: 'full', lab_technician: 'full' },
+  '/data-entry': { admin: 'full', met_accountant: 'full', plant_manager: 'read-only', lab_technician: 'assay-only' },
+  '/mass-balance': { admin: 'full', met_accountant: 'full', plant_manager: 'read-only', lab_technician: 'none' },
+  '/recovery': { admin: 'full', met_accountant: 'full', plant_manager: 'read-only', lab_technician: 'none' },
+  '/monthly': { admin: 'full', met_accountant: 'full', plant_manager: 'full', lab_technician: 'none' },
+  '/reconciliation': { admin: 'full', met_accountant: 'full', plant_manager: 'read-only', lab_technician: 'none' },
+  '/admin/users': { admin: 'full', met_accountant: 'none', plant_manager: 'none', lab_technician: 'none' },
+  '/activity-log': { admin: 'full', met_accountant: 'full', plant_manager: 'read-only', lab_technician: 'own-only' },
+  '/shift-handover': { admin: 'full', met_accountant: 'full', plant_manager: 'full', lab_technician: 'full' },
+};
+
+export function checkPermission(role: string, route: string): PermissionLevel {
+  const routePerms = permissionMatrix[route];
+  if (!routePerms) return 'full';
+  return routePerms[role] || 'none';
+}
+
 export async function logout(request: Request) {
   const session = await getSession(request);
   return redirect('/login', {
