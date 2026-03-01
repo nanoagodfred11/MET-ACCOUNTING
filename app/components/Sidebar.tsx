@@ -1,6 +1,7 @@
 import { NavLink, Form } from 'react-router';
 import { useState } from 'react';
 import { LayoutDashboard, PencilLine, Scale, TrendingUp, FileText, LogOut, Menu, X, Users, ClipboardList, ArrowLeftRight, GitCompareArrows } from 'lucide-react';
+import { ThemeToggle } from './ThemeToggle';
 
 interface NavItem {
   to: string;
@@ -40,9 +41,12 @@ export function Sidebar({ username, role }: { username: string; role: string }) 
           </button>
           <h1 className="text-gold-400 text-base font-bold tracking-tight">Met Accounting</h1>
         </div>
-        <div className="text-right">
-          <p className="text-gold-400 text-xs font-medium">{username}</p>
-          <p className="text-[10px] text-teal-400/80 capitalize">{role.replace('_', ' ')}</p>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <div className="text-right">
+            <p className="text-gold-400 text-xs font-medium">{username}</p>
+            <p className="text-[10px] text-teal-400/80 capitalize">{role.replace('_', ' ')}</p>
+          </div>
         </div>
       </div>
 
@@ -101,9 +105,12 @@ export function Sidebar({ username, role }: { username: string; role: string }) 
 
         {/* User + Logout */}
         <div className="p-4 border-t border-navy-500/30">
-          <div className="mb-3">
-            <p className="text-gold-400 text-sm font-medium">{username}</p>
-            <p className="text-xs text-teal-400/80 capitalize">{role.replace('_', ' ')}</p>
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="text-gold-400 text-sm font-medium">{username}</p>
+              <p className="text-xs text-teal-400/80 capitalize">{role.replace('_', ' ')}</p>
+            </div>
+            <ThemeToggle />
           </div>
           <Form method="post" action="/logout">
             <button

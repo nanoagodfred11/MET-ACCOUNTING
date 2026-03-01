@@ -9,6 +9,15 @@ import {
 
 import './styles/app.css';
 
+const themeScript = `
+(function() {
+  var t = localStorage.getItem('theme');
+  if (t === 'light' || t === 'dark') {
+    document.documentElement.className = t;
+  }
+})();
+`;
+
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
@@ -16,6 +25,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Met Accounting — CIL Gold Plant</title>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <Meta />
         <Links />
       </head>
